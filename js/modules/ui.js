@@ -179,8 +179,8 @@ export const UI = {
           <div class="event-image">
             <img src="${event.image}" alt="${event.name}" loading="lazy">
             <div class="event-overlay">
-              <button class="btn btn-primary customize-btn" data-event-id="${event.id}">Personalizar</button>
-              <button class="btn btn-outline preview-btn" data-event-id="${event.id}">Vista Previa</button>
+              <button class="btn btn-primary select-template-btn" data-event-id="${event.id}">Seleccionar Plantilla</button>
+              <button class="btn btn-outline add-to-cart-btn" data-event-id="${event.id}">Agregar al Carrito</button>
             </div>
           </div>
           <div class="event-info">
@@ -196,20 +196,18 @@ export const UI = {
     eventsGrid.innerHTML = eventsHTML
 
     // Setup event listeners with delegation - UPDATED
-    Utils.delegate(eventsGrid, ".customize-btn", "click", (e) => {
+    Utils.delegate(eventsGrid, ".select-template-btn", "click", (e) => {
       e.stopPropagation()
       const eventId = e.target.dataset.eventId
-      // Use new Customization module
-      if (window.Customization) {
-        window.Customization.openCustomizationModal(eventId)
-      } else {
-        this.openCustomizationModal(eventId)
-      }
+      this.selectTemplate(eventId)
     })
 
-    Utils.delegate(eventsGrid, ".preview-btn", "click", (e) => {
+    Utils.delegate(eventsGrid, ".add-to-cart-btn", "click", (e) => {
       e.stopPropagation()
-      this.showNotification("Vista previa próximamente disponible")
+      const eventId = e.target.dataset.eventId
+      if (window.Cart) {
+        window.Cart.addItem(eventId, "template")
+      }
     })
   },
 
@@ -246,7 +244,7 @@ export const UI = {
               .join("")}
           </div>
           <button class="btn ${pkg.featured ? "btn-primary" : "btn-outline"} btn-full package-btn" data-package="${pkg.id}">
-            Elegir ${pkg.name}
+            Seleccionar ${pkg.name}
           </button>
         </div>
       `,
@@ -259,7 +257,9 @@ export const UI = {
     Utils.delegate(packagesGrid, ".package-btn", "click", (e) => {
       e.preventDefault()
       const packageType = e.target.dataset.package
-      this.selectPackage(packageType)
+      if (window.Cart) {
+        window.Cart.addItem(packageType, "package")
+      }
     })
   },
 
@@ -485,6 +485,15 @@ export const UI = {
       case "checkoutModal":
         modalHTML = this.getCheckoutModalHTML()
         break
+      case "cartModal":
+        modalHTML = this.getCartModalHTML()
+        break
+      case "requestFormModal":
+        modalHTML = this.getRequestFormModalHTML()
+        break
+      case "successModal":
+        modalHTML = this.getSuccessModalHTML()
+        break
       default:
         throw new Error(`Unknown modal: ${modalId}`)
     }
@@ -527,6 +536,12 @@ export const UI = {
         this.closeModal("registerModal")
         this.openModal("loginModal")
       })
+    }
+
+    // Setup request form
+    const requestForm = modal.querySelector("#requestForm")
+    if (requestForm) {
+      this.setupRequestForm(requestForm)
     }
   },
 
@@ -644,6 +659,151 @@ export const UI = {
     `
   },
 
+  getCartModalHTML() {
+    return `
+    <div id="cartModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Carrito de Compras</h2>
+          <button class="close-modal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" x2="6" y1="6" y2="18"/>
+              <line x1="6" x2="18" y1="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="cartItems" class="cart-items">
+            <!-- Cart items will be rendered here -->
+          </div>
+          <div class="cart-summary">
+            <div class="cart-total">
+              <strong>Total: <span id="cartTotal">€0</span></strong>
+            </div>
+            <div class="cart-actions">
+              <button class="btn btn-outline" onclick="window.Cart.clearCart()">
+                Vaciar Carrito
+              </button>
+              <button id="proceedToCheckout" class="btn btn-primary">
+                Proceder al Pago
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+  },
+
+  getRequestFormModalHTML() {
+    return `
+    <div id="requestFormModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Detalles de tu Invitación</h2>
+          <button class="close-modal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" x2="6" y1="6" y2="18"/>
+              <line x1="6" x2="18" y1="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="request-intro">¡Pago procesado correctamente! Ahora completa los detalles para que nuestro equipo diseñe tu invitación perfecta.</p>
+          
+          <form id="requestForm" class="request-form">
+            <div class="form-group">
+              <label for="coupleNames">Nombre(s) de los novios *</label>
+              <input type="text" id="coupleNames" name="coupleNames" required placeholder="María y Carlos">
+              <div class="form-error"></div>
+            </div>
+
+            <div class="form-group">
+              <label for="eventDate">Fecha del evento *</label>
+              <input type="date" id="eventDate" name="eventDate" required>
+              <div class="form-error"></div>
+            </div>
+
+            <div class="form-group">
+              <label for="eventLocation">Ciudad o ubicación *</label>
+              <input type="text" id="eventLocation" name="eventLocation" required placeholder="Madrid, España">
+              <div class="form-error"></div>
+            </div>
+
+            <div class="form-group">
+              <label for="specialMessage">Frase o dedicatoria (opcional)</label>
+              <textarea id="specialMessage" name="specialMessage" rows="3" placeholder="Una frase especial para vuestra invitación..."></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="contactEmail">Correo electrónico *</label>
+                <input type="email" id="contactEmail" name="contactEmail" required>
+                <div class="form-error"></div>
+              </div>
+
+              <div class="form-group">
+                <label for="whatsappNumber">Número de WhatsApp *</label>
+                <input type="tel" id="whatsappNumber" name="whatsappNumber" required placeholder="+34 123 456 789">
+                <div class="form-error"></div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="desiredSubdomain">Subdominio deseado (opcional)</label>
+              <div class="subdomain-input">
+                <input type="text" id="desiredSubdomain" name="desiredSubdomain" placeholder="maria-y-carlos">
+                <span class="subdomain-suffix">.inviteu.digital</span>
+              </div>
+              <small class="form-help">Si no especificas uno, crearemos uno automáticamente</small>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-full">
+                Enviar Solicitud
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `
+  },
+
+  getSuccessModalHTML() {
+    return `
+      <div id="successModal" class="modal">
+        <div class="modal-content success-modal">
+          <div class="modal-body">
+            <div class="success-content">
+              <div class="success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22,4 12,14.01 9,11.01"/>
+                </svg>
+              </div>
+              <h2>¡Gracias por tu compra!</h2>
+              <p class="success-message">
+                Nuestro equipo está trabajando en tu invitación y la recibirás en un plazo de <strong>24 a 48 horas</strong>.
+              </p>
+              <p class="success-details">
+                Te contactaremos al correo y WhatsApp proporcionados para coordinar cualquier detalle adicional.
+              </p>
+              <div class="success-actions">
+                <button class="btn btn-primary" onclick="window.UI.closeModal('successModal')">
+                  Continuar Navegando
+                </button>
+                <button class="btn btn-outline" onclick="window.location.href='#inicio'">
+                  Volver al Inicio
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+
   // Track events for analytics
   trackEvent(eventName, eventData) {
     if (window.ga) {
@@ -675,5 +835,73 @@ export const UI = {
     if (yearElement) {
       yearElement.textContent = new Date().getFullYear()
     }
+  },
+
+  selectTemplate(eventId) {
+    const event = Data.getEventById(eventId)
+    if (!event) return
+
+    this.showNotification(`Plantilla "${event.name}" seleccionada. Agrégala al carrito para continuar.`)
+
+    // Scroll to the add to cart button
+    const eventCard = Utils.$(`[data-event-id="${eventId}"]`).closest(".event-card")
+    if (eventCard) {
+      eventCard.scrollIntoView({ behavior: "smooth", block: "center" })
+      eventCard.classList.add("selected-template")
+      setTimeout(() => eventCard.classList.remove("selected-template"), 2000)
+    }
+  },
+
+  setupRequestForm(form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault()
+
+      const formData = new FormData(form)
+      const requestData = {
+        coupleNames: formData.get("coupleNames"),
+        eventDate: formData.get("eventDate"),
+        eventLocation: formData.get("eventLocation"),
+        specialMessage: formData.get("specialMessage"),
+        contactEmail: formData.get("contactEmail"),
+        whatsappNumber: formData.get("whatsappNumber"),
+        desiredSubdomain: formData.get("desiredSubdomain"),
+        submittedAt: new Date().toISOString(),
+      }
+
+      // Validate required fields
+      const required = ["coupleNames", "eventDate", "eventLocation", "contactEmail", "whatsappNumber"]
+      const missing = required.filter((field) => !requestData[field])
+
+      if (missing.length > 0) {
+        this.showNotification(`Campos requeridos: ${missing.join(", ")}`, "error")
+        return
+      }
+
+      const submitBtn = form.querySelector('button[type="submit"]')
+      Utils.setLoading(submitBtn, true)
+
+      try {
+        // Save request data
+        const requests = Utils.getStorage("inviteu_requests") || []
+        requests.push({
+          id: Date.now().toString(),
+          ...requestData,
+          userId: window.Auth.currentUser?.id,
+        })
+        Utils.setStorage("inviteu_requests", requests)
+
+        Utils.setLoading(submitBtn, false)
+
+        // Close modal and show success
+        this.closeModal("requestFormModal")
+
+        setTimeout(() => {
+          this.openModal("successModal")
+        }, 500)
+      } catch (error) {
+        Utils.setLoading(submitBtn, false)
+        this.showNotification("Error al enviar la solicitud", "error")
+      }
+    })
   },
 }

@@ -9,6 +9,7 @@ import { Payment } from "./modules/payment.js"
 import { Customization } from "./modules/customization.js"
 import { Checkout } from "./modules/checkout.js"
 import { UserPanel } from "./modules/user-panel.js"
+import { Cart } from "./modules/cart.js"
 
 // Application Class - Updated
 class InviteUApp {
@@ -17,6 +18,7 @@ class InviteUApp {
       config: CONFIG,
       utils: Utils,
       data: Data,
+      cart: Cart,
       auth: Auth,
       ui: UI,
       validation: Validation,
@@ -74,6 +76,7 @@ class InviteUApp {
       window.CONFIG = this.modules.config
       window.Utils = this.modules.utils
       window.Data = this.modules.data
+      window.Cart = this.modules.cart
       window.Auth = this.modules.auth
       window.UI = this.modules.ui
       window.Validation = this.modules.validation
@@ -89,12 +92,13 @@ class InviteUApp {
     const initOrder = [
       "utils", // First - needed by all others
       "data", // Second - provides data to other modules
-      "validation", // Third - needed by forms
-      "ui", // Fourth - sets up interface
-      "auth", // Fifth - depends on UI
-      "payment", // Sixth - depends on auth and UI
-      "customization", // Seventh - depends on UI and Data
-      "checkout", // Eighth - depends on customization and payment
+      "cart", // Third - cart functionality
+      "validation", // Fourth - needed by forms
+      "ui", // Fifth - sets up interface
+      "auth", // Sixth - depends on UI
+      "payment", // Seventh - depends on auth and UI
+      "customization", // Eighth - depends on UI and Data
+      "checkout", // Ninth - depends on customization and payment
       "userPanel", // Last - depends on auth and UI
     ]
 

@@ -1,7 +1,6 @@
 // Nuevo módulo para gestión de checkout
 import { CONFIG } from "../config.js"
 import { Utils } from "./utils.js"
-import { Data } from "./data.js"
 
 export const Checkout = {
   currentOrder: null,
@@ -22,44 +21,55 @@ export const Checkout = {
   },
 
   initializeCheckoutModal() {
-    this.loadOrderSummary()
+    this.loadCartSummary()
     this.setupPaymentMethods()
     this.setupCheckoutButtons()
   },
 
-  loadOrderSummary() {
-    const customization = Utils.getStorage("current_customization")
-    if (!customization) return
+  loadCartSummary() {
+    if (!window.Cart || window.Cart.items.length === 0) {
+      if (window.UI) {
+        window.UI.showNotification("El carrito está vacío", "error")
+        window.UI.closeModal("checkoutModal")
+      }
+      return
+    }
 
-    const packageData = Data.getPackageById(customization.package)
-    if (!packageData) return
-
-    // Calculate totals
-    const subtotal = packageData.price.max
+    const items = window.Cart.items
+    const subtotal = window.Cart.getTotal()
     const tax = Math.round(subtotal * CONFIG.BUSINESS.TAX_RATE)
     const total = subtotal + tax
 
-    // Update UI
-    const orderDesign = Utils.$("#orderDesign")
-    const orderPackage = Utils.$("#orderPackage")
-    const orderDetails = Utils.$("#orderDetails")
-    const orderPrice = Utils.$("#orderPrice")
-    const subtotalEl = Utils.$("#subtotal")
-    const taxEl = Utils.$("#tax")
-    const totalEl = Utils.$("#total")
+    // Update order summary UI
+    const orderSummary = Utils.$("#orderSummary")
+    if (orderSummary) {
+      const itemsHTML = items
+        .map(
+          (item) => `
+      <div class="order-item">
+        <span class="item-name">${item.name}</span>
+        <span class="item-quantity">x${item.quantity}</span>
+        <span class="item-price">${Utils.formatPrice(item.price * item.quantity)}</span>
+      </div>
+    `,
+        )
+        .join("")
 
-    if (orderDesign) orderDesign.textContent = customization.title || "Invitación Personalizada"
-    if (orderPackage) orderPackage.textContent = `Paquete ${packageData.name}`
-    if (orderDetails) orderDetails.textContent = `${customization.names} - ${Utils.formatDate(customization.date)}`
-    if (orderPrice) orderPrice.textContent = Utils.formatPrice(subtotal)
-    if (subtotalEl) subtotalEl.textContent = Utils.formatPrice(subtotal)
-    if (taxEl) taxEl.textContent = Utils.formatPrice(tax)
-    if (totalEl) totalEl.textContent = Utils.formatPrice(total)
+      orderSummary.innerHTML = `
+      <div class="order-items">
+        ${itemsHTML}
+      </div>
+      <div class="order-totals">
+        <div class="subtotal">Subtotal: ${Utils.formatPrice(subtotal)}</div>
+        <div class="tax">IVA (${(CONFIG.BUSINESS.TAX_RATE * 100).toFixed(0)}%): ${Utils.formatPrice(tax)}</div>
+        <div class="total"><strong>Total: ${Utils.formatPrice(total)}</strong></div>
+      </div>
+    `
+    }
 
     // Store order data
     this.currentOrder = {
-      customization,
-      package: packageData,
+      items: items,
       pricing: { subtotal, tax, total },
     }
   },
@@ -143,14 +153,18 @@ export const Checkout = {
         // Save order
         await this.saveOrder(result)
 
-        // Show success
-        if (window.UI) {
-          window.UI.closeModal("checkoutModal")
-          window.UI.showNotification("¡Pago procesado correctamente! Tu invitación estará lista pronto.")
+        // Clear cart
+        if (window.Cart) {
+          window.Cart.clearCart()
         }
 
-        // Clear customization data
-        Utils.removeStorage("current_customization")
+        // Close checkout and show request form
+        if (window.UI) {
+          window.UI.closeModal("checkoutModal")
+          setTimeout(() => {
+            window.UI.openModal("requestFormModal")
+          }, 500)
+        }
       }
     } catch (error) {
       Utils.handleError(error, "processPayment")
